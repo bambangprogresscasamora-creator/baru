@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pemutar Lagu Web — Unggah & Putar</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111a2f;
+      --muted: #8ea0bf;
+      --text: #e8eefc;
+      --accent: #5aa7ff;
+      --accent-2: #7bd389;
+      --danger: #ff6b6b;
+      --ring: rgba(90, 167, 255, .35);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f7f9fe;
+        --panel: #ffffff;
+        --muted: #5a6b8a;
+        --text: #0e1320;
+        --accent: #2d6cff;
+        --accent-2: #1fa84f;
+        --danger: #e03131;
+        --ring: rgba(45, 108, 255, .25);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 80% -10%, rgba(90,167,255,.08), transparent 70%),
+                  radial-gradient(900px 600px at 10% 110%, rgba(123,211,137,.08), transparent 60%), var(--bg);
+      color: var(--text); display: grid; place-items: center; padding: 24px;
+    }
+    .app { width: min(920px, 100%); }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) , var(--panel);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      overflow: hidden;
+    }
+
+    header { padding: 20px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+    header .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .btn {
+      appearance: none; border: 1px solid rgba(255,255,255,.12); background: transparent; color: var(--text);
+      padding: 10px 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: .15s ease;
+      display: inline-flex; align-items: center; gap: 10px; text-decoration: none;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px var(--ring); border-color: var(--accent); }
+    .btn.primary { background: linear-gradient(90deg, var(--accent), #8bbaff); color: white; border-color: transparent; }
+    .btn.success { background: linear-gradient(90deg, var(--accent-2), #9fe3aa); color: #06330f; border-color: transparent; }
+    .btn.danger { background: linear-gradient(90deg, var(--danger), #ff8a8a); color: white; border-color: transparent; }
+
+    .uploader { padding: 18px 22px; display: grid; gap: 12px; }
+    .dropzone {
+      position: relative; border: 2px dashed rgba(255,255,255,.18); border-radius: 16px; padding: 26px; text-align: center; color: var(--muted);
+      transition: .2s ease; background: rgba(255,255,255,.03);
+    }
+    .dropzone.dragover { border-color: var(--accent); background: rgba(90,167,255,.08); color: var(--text); }
+    .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .tips { color: var(--muted); font-size: 13px; }
+
+    .player { display: grid; grid-template-columns: 1.5fr .9fr; gap: 18px; padding: 0 22px 22px; }
+    @media (max-width: 800px) { .player { grid-template-columns: 1fr; } }
+
+    .now { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 18px; display: grid; gap: 14px; }
+
+    .title-line { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+    .title-line .meta { min-width: 0; }
+    .title-line .name { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .title-line .sub { color: var(--muted); font-size: 13px; }
+
+    .controls { display: grid; gap: 14px; }
+    .bar { display: grid; gap: 8px; }
+    .progress { height: 8px; background: rgba(255,255,255,.12); border-radius: 999px; position: relative; cursor: pointer; }
+    .progress > .fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: linear-gradient(90deg, var(--accent), #8bbaff); border-radius: inherit; }
+    .time { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+
+    .transport { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px; align-items: center; }
+    .tbtn { padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.02); cursor: pointer; font-weight: 700; }
+    .tbtn:hover { border-color: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
+    .tbtn.active { outline: 2px solid var(--accent); }
+
+    .vol { display: flex; align-items: center; gap: 10px; }
+    .vol input[type="range"] { width: 100%; }
+
+    .playlist { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 12px; max-height: 380px; overflow: auto; }
+    .plist-item { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 10px 10px; border-radius: 12px; cursor: pointer; }
+    .plist-item:hover { background: rgba(255,255,255,.05); }
+    .plist-item.active { background: rgba(90,167,255,.12); border: 1px solid var(--accent); }
+    .plist-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .plist-sub { color: var(--muted); font-size: 12px; }
+    .remove { border: none; background: transparent; color: var(--danger); font-weight: 700; cursor: pointer; }
+
+    footer { padding: 14px 22px 22px; color: var(--muted); font-size: 12px; }
+    code.kbd { background: rgba(255,255,255,.08); padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,.15); }
+  </style>
+</head>
+<body>
+  <div class="app card" role="application" aria-label="Pemutar Lagu Web">
+    <header>
+      <h1>🎵 Pemutar Lagu Web</h1>
+      <div class="actions">
+        <button id="btnClear" class="btn danger" title="Hapus semua dari playlist">Bersihkan Playlist</button>
+        <a id="btnHelp" class="btn" href="#help">Bantuan</a>
+      </div>
+    </header>
+
+    <section class="uploader">
+      <div id="drop" class="dropzone" aria-label="Unggah atau tarik-lepas file audio">
+        <strong>Tarik & lepas</strong> file musik di sini, atau klik untuk memilih.
+        <input id="fileInput" type="file" accept="audio/*" multiple />
+      </div>
+      <div class="tips">Format yang didukung tergantung browser Anda (umumnya: MP3, M4A/AAC, OGG, WAV). Semua diproses <em>lokal</em> — file Anda tidak diunggah ke server mana pun.</div>
+    </section>
+
+    <section class="player">
+      <div class="now">
+        <div class="title-line">
+          <div class="meta">
+            <div id="nowName" class="name">Belum ada lagu diputar</div>
+            <div id="nowType" class="sub">—</div>
+          </div>
+          <div class="vol" title="Volume">
+            <span>🔊</span>
+            <input id="vol" type="range" min="0" max="1" step="0.01" value="0.9" />
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="bar">
+            <div id="progress" class="progress" aria-label="Progress bar" title="Klik untuk seek">
+              <div id="fill" class="fill"></div>
+            </div>
+            <div class="time"><span id="cur">00:00</span><span id="dur">00:00</span></div>
+          </div>
+          <div class="transport">
+            <button id="btnLoop" class="tbtn" title="Ulangi satu">🔁</button>
+            <button id="btnPrev" class="tbtn" title="Sebelumnya">⏮️</button>
+            <button id="btnPlay" class="tbtn" title="Putar/Jeda (Spasi)">▶️</button>
+            <button id="btnNext" class="tbtn" title="Berikutnya">⏭️</button>
+            <button id="btnShuffle" class="tbtn" title="Acak">🔀</button>
+          </div>
+        </div>
+        <audio id="audio" preload="metadata"></audio>
+      </div>
+
+      <div class="playlist" aria-label="Daftar putar" id="plist"></div>
+    </section>
+
+    <footer id="help">
+      <div>⌨️ Pintasan: <code class="kbd">Spasi</code> play/jeda, <code class="kbd">←/→</code> mundur/maju 5 dtk, <code class="kbd">↑/↓</code> volume ±10%.</div>
+    </footer>
+  </div>
+
+  <script>
+    const $ = (s, el=document) => el.querySelector(s);
+    const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+
+    const audio = $('#audio');
+    const fileInput = $('#fileInput');
+    const drop = $('#drop');
+    const plistEl = $('#plist');
+    const nowName = $('#nowName');
+    const nowType = $('#nowType');
+    const vol = $('#vol');
+    const progress = $('#progress');
+    const fill = $('#fill');
+    const curTime = $('#cur');
+    const durTime = $('#dur');
+
+    const btnPlay = $('#btnPlay');
+    const btnPrev = $('#btnPrev');
+    const btnNext = $('#btnNext');
+    const btnShuffle = $('#btnShuffle');
+    const btnLoop = $('#btnLoop');
+    const btnClear = $('#btnClear');
+
+    /** State **/
+    let tracks = []; // {file, url, name, size, type}
+    let current = -1;
+    let shuffle = false;
+
+    function fmtTime(sec){ if(!isFinite(sec)) return '00:00'; const m=Math.floor(sec/60); const s=Math.floor(sec%60); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+
+    function addFiles(files){
+      const newOnes = [];
+      for(const f of files){
+        if(!f.type.startsWith('audio/')) continue;
+        const url = URL.createObjectURL(f);
+        newOnes.push({file:f,url,name:f.name.replace(/\.[^.]+$/, ''), size:f.size, type:f.type});
+      }
+      if(!newOnes.length) return;
+      tracks.push(...newOnes);
+      renderPlaylist();
+      if(current === -1) loadTrack(0, true);
+    }
+
+    function renderPlaylist(){
+      plistEl.innerHTML = '';
+      tracks.forEach((t, i)=>{
+        const row = document.createElement('div');
+        row.className = 'plist-item' + (i===current ? ' active' : '');
+        row.tabIndex = 0;
+        row.setAttribute('role','button');
+        row.setAttribute('aria-label', `Putar ${t.name}`);
+        row.addEventListener('click', ()=> loadTrack(i, true));
+        row.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); loadTrack(i, true); }});
+
+        const name = document.createElement('div');
+        name.className = 'plist-name';
+        name.textContent = t.name;
+
+        const sub = document.createElement('div');
+        sub.className = 'plist-sub';
+        sub.textContent = `${(t.size/1024/1024).toFixed(2)} MB · ${t.type.replace('audio/','').toUpperCase()}`;
+
+        const left = document.createElement('div');
+        left.appendChild(name); left.appendChild(sub);
+
+        const rm = document.createElement('button');
+        rm.className = 'remove'; rm.textContent = '✖'; rm.title = 'Hapus dari playlist';
+        rm.addEventListener('click', (e)=>{ e.stopPropagation(); removeTrack(i); });
+
+        row.appendChild(left); row.appendChild(rm);
+        plistEl.appendChild(row);
+      });
+    }
+
+    function removeTrack(i){
+      if(i===current){
+        audio.pause();
+        URL.revokeObjectURL(tracks[i].url);
+        tracks.splice(i,1);
+        current = -1;
+        if(tracks.length){ loadTrack(Math.min(i, tracks.length-1), true); }
+        else { resetNow(); }
+      } else {
+        URL.revokeObjectURL(tracks[i].url);
+        tracks.splice(i,1);
+        if(i < current) current -= 1;
+        renderPlaylist();
+      }
+    }
+
+    function resetNow(){
+      nowName.textContent = 'Belum ada lagu diputar';
+      nowType.textContent = '—';
+      curTime.textContent = '00:00';
+      durTime.textContent = '00:00';
+      fill.style.width = '0%';
+      btnPlay.textContent = '▶️';
+    }
+
+    function loadTrack(i, autoplay=false){
+      if(i < 0 || i >= tracks.length) return;
+      current = i;
+      const t = tracks[i];
+      audio.src = t.url;
+      nowName.textContent = t.name;
+      nowType.textContent = t.type.replace('audio/','').toUpperCase();
+      renderPlaylist();
+      if(autoplay) play(); else pause();
+    }
+
+    function play(){ audio.play(); btnPlay.textContent = '⏸️'; }
+    function pause(){ audio.pause(); btnPlay.textContent = '▶️'; }
+
+    function next(){
+      if(!tracks.length) return;
+      if(shuffle){
+        if(tracks.length === 1) return play();
+        let n; do { n = Math.floor(Math.random()*tracks.length); } while(n===current);
+        loadTrack(n, true);
+      } else {
+        const n = (current + 1) % tracks.length;
+        loadTrack(n, true);
+      }
+    }
+
+    function prev(){ if(!tracks.length) return; const n = (current - 1 + tracks.length) % tracks.length; loadTrack(n, true); }
+
+    /** Events **/
+    fileInput.addEventListener('change', (e)=> addFiles(e.target.files));
+
+    ;['dragenter','dragover'].forEach(ev=> drop.addEventListener(ev, (e)=>{ e.preventDefault(); drop.classList.add('dragover'); }));
+    ;['dragleave','drop'].forEach(ev=> drop.addEventListener(ev, (e)=>{ e.preventDefault(); drop.classList.remove('dragover'); }));
+    drop.addEventListener('drop', (e)=>{ addFiles(e.dataTransfer.files); });
+
+    btnPlay.addEventListener('click', ()=> audio.paused ? play() : pause());
+    btnNext.addEventListener('click', next);
+    btnPrev.addEventListener('click', prev);
+
+    btnShuffle.addEventListener('click', ()=>{ shuffle = !shuffle; btnShuffle.classList.toggle('active', shuffle); });
+    btnLoop.addEventListener('click', ()=>{ audio.loop = !audio.loop; btnLoop.classList.toggle('active', audio.loop); });
+
+    btnClear.addEventListener('click', ()=>{
+      audio.pause(); tracks.forEach(t=> URL.revokeObjectURL(t.url)); tracks = []; current = -1; renderPlaylist(); resetNow();
+    });
+
+    vol.addEventListener('input', ()=>{ audio.volume = +vol.value; });
+    audio.volume = +vol.value;
+
+    audio.addEventListener('loadedmetadata', ()=>{ durTime.textContent = fmtTime(audio.duration); });
+    audio.addEventListener('timeupdate', ()=>{
+      curTime.textContent = fmtTime(audio.currentTime);
+      if(isFinite(audio.duration)) fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+    });
+    audio.addEventListener('ended', ()=>{ if(!audio.loop) next(); });
+
+    progress.addEventListener('click', (e)=>{
+      const rect = progress.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      if(isFinite(audio.duration)) audio.currentTime = ratio * audio.duration;
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+      if(e.code === 'Space'){ e.preventDefault(); audio.paused ? play() : pause(); }
+      if(e.code === 'ArrowRight'){ audio.currentTime = Math.min((audio.currentTime||0) + 5, audio.duration||Infinity); }
+      if(e.code === 'ArrowLeft'){ audio.currentTime = Math.max((audio.currentTime||0) - 5, 0); }
+      if(e.code === 'ArrowUp'){ e.preventDefault(); audio.volume = Math.min(1, (audio.volume||0) + 0.1); vol.value = audio.volume; }
+      if(e.code === 'ArrowDown'){ e.preventDefault(); audio.volume = Math.max(0, (audio.volume||0) - 0.1); vol.value = audio.volume; }
+    });
+
+    // Small UX: restore last volume from session
+    const v = sessionStorage.getItem('vol');
+    if(v){ vol.value = v; audio.volume = +v; }
+    window.addEventListener('beforeunload', ()=> sessionStorage.setItem('vol', vol.value));
+  </script>
+</body>
+</html>
